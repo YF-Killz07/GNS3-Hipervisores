@@ -1,7 +1,5 @@
 # GNS3 + Hipervisores en Windows 11
 
-![Estado](https://img.shields.io/badge/Estado-Investigación_en_Curso-yellow)
-![Plataforma](https://img.shields.io/badge/Plataforma-GNS3%20%2B%20Windows11-blue)
 
 ## Objetivo
 
