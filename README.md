@@ -1,91 +1,182 @@
-# Laboratorio Avanzado de GNS3 sobre Windows 11 con Hipervisores
+# GNS3 + Hipervisores en Windows 11
+
+![Estado](https://img.shields.io/badge/Estado-Investigación_en_Curso-yellow)
+![Plataforma](https://img.shields.io/badge/Plataforma-GNS3%20%2B%20Windows11-blue)
+
+## Objetivo
+
+Investigar y documentar la implementación de laboratorios de red avanzados utilizando GNS3 sobre Windows 11, integrando hipervisores de tipo 1 (VMware ESXi) y tipo 2 (VirtualBox), analizando su arquitectura, configuración y resolución de errores.
+
+## 1. Arquitectura de Virtualización en Windows 11
+
+### Aislamiento de Núcleo y VBS
+
+El Aislamiento de Núcleo (Core Isolation) y Virtualization-Based Security (VBS) son mecanismos de seguridad que utilizan virtualización para proteger procesos críticos del sistema operativo.
+
+**Impacto en la virtualización:**
+
+- Activan Hyper-V de forma implícita
+- Bloquean el acceso a VT-x/AMD-V para otros hipervisores
+- Generan errores como:
+  - KVM support available: False
+  - Bajo rendimiento en GNS3
+
+**Solución recomendada:**
+
+Desactivar:
+- Aislamiento de núcleo
+- Integridad de memoria
+
+### Activación de VT-x / AMD-V
+
+**Procedimiento:**
+
+1. Reiniciar el equipo e ingresar al BIOS/UEFI
+2. Activar:
+   - Intel: Intel VT-x
+   - AMD: SVM Mode
+3. Guardar cambios
+
+**Verificación en Windows:**
+
+systeminfo
+
+Buscar la línea:
+
+Virtualization Enabled In Firmware: Yes
+
 
 ---
 
-## Arquitectura de Virtualización en Windows 11
+## 2. GNS3 VM: El Motor de Simulación
 
-### Aislamiento de Núcleo y Virtualization-based Security (VBS)
+### KVM (Kernel-based Virtual Machine)
 
-Windows 11 implementa **Aislamiento de núcleo** y **Virtualization-based Security (VBS)** para proteger el sistema mediante un hipervisor integrado.  
-Estas funciones de seguridad pueden bloquear tecnologías esenciales de virtualización como VT-x/AMD-V, provocando que GNS3 o VirtualBox no funcionen correctamente y que KVM aparezca como “False”.
+KVM es una tecnología de virtualización que permite ejecutar máquinas virtuales con acceso directo al hardware.
 
-**Recomendación:**  
-Para laboratorios avanzados en GNS3, se recomienda desactivar temporalmente aislamiento de núcleo y VBS.
+**Importancia en GNS3:**
 
-# Verificar estado de virtualización y seguridad
-systeminfo
+- Permite ejecutar dispositivos de red
+- Mejora significativamente el rendimiento
+- Debe mostrarse como:
 
-Para desactivar VBS:
-Seguridad de Windows → Seguridad del dispositivo → Aislamiento de núcleo → Desactivar integridad de memoria
+KVM support available: True
 
-Activación de VT-x/AMD-V en BIOS/UEFI
+Si aparece en False:
 
-Habilita la virtualización asistida desde BIOS/UEFI para que GNS3 VM funcione correctamente y soporte hipervisores anidados.
+No hay virtualización anidada
+Hyper-V está interfiriendo
+VT-x/AMD-V no está habilitado
 
-# Confirmar activación de virtualización asistida
-systeminfo
 
-Debe mostrar:
-Virtualization Enabled In Firmware: Yes
+---
 
-Si no, habilitar en BIOS/UEFI.
+### Configuración de Recursos
 
-GNS3 VM: Motor de Simulación con KVM
+| Recurso | Recomendación |
+|--------|-------------|
+| CPU | 2 - 4 cores |
+| RAM | 4GB - 8GB |
+| Disco | 20GB mínimo |
 
-KVM (Kernel-based Virtual Machine) es un módulo Linux que utiliza VT-x/AMD-V para virtualización eficiente, indispensable para laboratorios complejos en GNS3.
+**Criterios:**
 
-# Verificar soporte de virtualización en VM
-grep -E 'vmx|svm' /proc/cpuinfo
+- No asignar más del 50% de los recursos del host  
+- Mantener estabilidad del sistema  
+- Ajustar según la complejidad de la topología
 
-Si no devuelve resultados, la virtualización asistida no está activa.
+## 3. Integración con VirtualBox (Local)
 
-Configuración recomendada de recursos
-Recurso	Valor recomendado
-CPU	2 a 4 núcleos físicos
-RAM	4 a 8 GB
-Disco	≥ 20 GB
-Virtualización anidada	Activada para hipervisores internos
-Integración con VirtualBox (Local)
-Adaptador Host-Only
+### Configuración de Red (Host-Only)
 
-Configura un adaptador Host-Only para que la GUI de GNS3 se comunique con la VM de VirtualBox.
+**Objetivo:**
 
-Ejemplo IP: 192.168.56.1
+Permitir comunicación entre el host (GUI) y la GNS3 VM.
 
-Modo Promiscuo
+**Pasos:**
 
-Permite capturar todo el tráfico de capa 2, esencial para simular redes reales.
+1. Ir a VirtualBox → File → Host Network Manager  
+2. Crear adaptador Host-Only  
+3. Configurar:
+   - IP: 192.168.56.1  
+   - DHCP habilitado  
+4. Asignar adaptador a la GNS3 VM:
+   - Adapter 1: Host-Only
 
-# Habilitar virtualización anidada en VirtualBox
-VBoxManage modifyvm "GNS3 VM" --nested-hw-virt on
-Integración con VMware ESXi (Remoto)
-Arquitectura Cliente-Servidor
+### Modo Promiscuo
 
-La GUI de GNS3 en la laptop controla nodos virtuales en ESXi remoto mediante la API en puerto TCP 3080.
+El modo promiscuo permite que una interfaz capture todo el tráfico de red.
 
-Seguridad en vSwitch
-Política	Configuración
-Promiscuous Mode	Permitir
-MAC Address Changes	Permitir
-Forged Transmits	Permitir
+**Importancia en GNS3:**
 
-Esto garantiza el paso adecuado de tráfico de capa 2.
+- Necesario para tráfico de Capa 2  
+- Permite:
+  - ARP  
+  - Broadcast  
+  - VLANs  
 
-Solución de Problemas Comunes
-Error Detectado	Causa Técnica	Solución Implementada
-KVM support available: False	Hyper-V o VBS bloquea VT-x/AMD-V	Desactivar aislamiento de núcleo y Hyper-V
-Sin conectividad en VirtualBox	Modo promiscuo deshabilitado o IP errónea	Activar modo promiscuo (“Permitir todo”), corregir IP
-Error conexión puerto 3080	Firewall bloquea API GNS3	Permitir tráfico TCP en puertos 3080 y 5000-10000
-VM GNS3 lenta	Recursos insuficientes	Aumentar CPU, RAM y activar virtualización anidada
-Nodo no arranca en ESXi	Virtualización asistida no expuesta	Habilitar “Expose hardware assisted virtualization”
-Buenas Prácticas
-Realizar snapshots antes de cambios importantes.
-Documentar asignaciones y configuraciones de recursos.
-Evitar conflictos de IP en redes Host-Only y Bridge.
-Revisar logs de GNS3 para detección temprana de errores.
-Mantener actualizado GNS3 y los hipervisores.
-Recursos y Referencias
-Documentación Oficial GNS3
-Manual VirtualBox
-Guía Redes VMware ESXi
-Visión General VBS Microsoft
+**Configuración:**
+
+Allow All
+
+
+---
+
+
+## 4. Integración con VMware ESXi (Remoto)
+
+### Arquitectura Cliente-Servidor
+
+**Componentes:**
+
+- Cliente: GNS3 GUI (Windows 11)  
+- Servidor: GNS3 VM en ESXi  
+
+**Flujo de comunicación:**
+
+Laptop (GUI) → Red → ESXi → GNS3 VM → Dispositivos
+
+Ventajas:
+
+Mayor rendimiento
+Uso de hardware dedicado
+Escalabilidad
+
+
+---
+
+### Seguridad en vSwitch
+
+**Configuraciones importantes:**
+
+- Promiscuous Mode  
+- MAC Address Changes  
+- Forged Transmits  
+
+**Configuración recomendada:**
+
+Promiscuous Mode: Accept
+MAC Address Changes: Accept
+Forged Transmits: Accept
+
+Ubicación:
+
+ESXi → Networking → Port Groups → Security
+
+---
+
+## 5. Matriz de Solución de Errores (Troubleshooting)
+
+| Error Detectado | Causa Técnica | Solución Implementada |
+|----------------|-------------|----------------------|
+| KVM support available: False | No hay virtualización anidada o Hyper-V activo | Desactivar Hyper-V y ejecutar: `VBoxManage modifyvm "GNS3 VM" --nested-hw-virt on` |
+| No hay conectividad entre Router y VM | Modo promiscuo deshabilitado | Activar "Allow All" en VirtualBox |
+| Error conexión puerto 3080 | Firewall bloqueando la API de GNS3 | Abrir puertos 3080 y 5000-10000 |
+
+## Conclusiones
+
+- GNS3 requiere virtualización avanzada para funcionar correctamente  
+- Windows 11 puede limitar el uso de hipervisores debido a VBS  
+- VMware ESXi ofrece mejor rendimiento que VirtualBox  
+- La configuración de red es fundamental en la simulación  
+- El troubleshooting es clave en entornos virtualizados  
